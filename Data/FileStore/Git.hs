@@ -269,7 +269,7 @@ gitDiff repo name from to = do
 -}
 
 gitLogFormat :: String
-gitLogFormat = "%x01%H%x00%ct%x00%an%x00%ae%x00%B%n%x00"
+gitLogFormat = "%x01%H%x00%at%x00%an%x00%ae%x00%B%n%x00"
 
 -- | Return list of log entries for the given time frame and list of resources.
 -- If list of resources is empty, log entries for all resources are returned.
