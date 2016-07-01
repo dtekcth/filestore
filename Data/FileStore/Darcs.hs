@@ -50,7 +50,7 @@ darcsFileStore repo = FileStore {
   , directory       = darcsDirectory repo
   , search          = darcsSearch repo
   , idsMatch        = const hashsMatch repo }
-                   
+
 -- | Run a darcs command and return error status, error output, standard output.  The repository
 -- is used as working directory.
 runDarcsCommand :: FilePath -> String -> [String] -> IO (ExitCode, String, B.ByteString)
@@ -198,7 +198,7 @@ darcsRetrieve repo name mbId = do
   if status == ExitSuccess
      then return $ fromByteString output
      else throwIO $ UnknownError $ "Error in darcs query contents:\n" ++ err
-          
+
 getNames :: B.ByteString -> [String]
 getNames = map (drop 2) . lines . toString
 
@@ -225,7 +225,7 @@ darcsDirectory repo dir = withVerifyDir (repo </> dir) $ do
        -- Now, select the ones that are in THIS directory and convert to Resources:
        let files' = map FSFile  $ filter ('/' `notElem`) files
        let dirs'  = map FSDirectory $ filter ('/' `notElem`) dirs
-       return $ sort (files' ++ dirs') 
+       return $ sort (files' ++ dirs')
      else return []  -- returns empty list for invalid path (see gitDirectory)
               where adhocParsing d = map (drop $ length d + 2) . filter (("." </> d) `isPrefixOf`)
 

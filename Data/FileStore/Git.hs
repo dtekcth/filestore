@@ -49,7 +49,7 @@ gitFileStore repo = FileStore {
   , revision          = gitGetRevision repo
   , index             = gitIndex repo
   , directory         = gitDirectory repo
-  , search            = gitSearch repo 
+  , search            = gitSearch repo
   , idsMatch          = const hashsMatch repo
   }
 
@@ -186,7 +186,7 @@ gitDelete repo name author logMsg = withSanityCheck repo [".git"] name $ do
 gitMove :: FilePath -> FilePath -> FilePath -> Author -> Description -> IO ()
 gitMove repo oldName newName author logMsg = do
   _ <- gitLatestRevId repo oldName   -- will throw a NotFound error if oldName doesn't exist
-  (statusAdd, err, _) <- withSanityCheck repo [".git"] newName $ runGitCommand repo "mv" [oldName, newName] 
+  (statusAdd, err, _) <- withSanityCheck repo [".git"] newName $ runGitCommand repo "mv" [oldName, newName]
   if statusAdd == ExitSuccess
      then gitCommit repo [oldName, newName] author logMsg
      else throwIO $ UnknownError $ "Could not git mv " ++ oldName ++ " " ++ newName ++ "\n" ++ err
@@ -261,7 +261,7 @@ parseMatchLine str =
                                     else error $ "parseMatchLine: " ++ str
              , matchLine = cont}
     where (fname,xs) = break (== '\NUL') str
-          rest = drop 1 xs 
+          rest = drop 1 xs
           -- for some reason, NUL is used after line number instead of
           -- : when --match-all is passed to git-grep.
           (ln,ys) = span (`elem` ['0'..'9']) rest
@@ -349,4 +349,3 @@ parseChanges (x:y:zs) = do
 parseChanges [_] =
   throwIO $ UnknownError $ "parseChanges encountered odd number of fields"
 parseChanges [] = return []
-

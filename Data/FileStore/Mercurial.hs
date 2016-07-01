@@ -48,7 +48,7 @@ mercurialFileStore repo = FileStore {
   , revision          = mercurialGetRevision repo
   , index             = mercurialIndex repo
   , directory         = mercurialDirectory repo
-  , search            = mercurialSearch repo 
+  , search            = mercurialSearch repo
   , idsMatch          = const hashsMatch repo
   }
 
@@ -137,7 +137,7 @@ mercurialDelete repo name author logMsg = withSanityCheck repo [".hg"] name $ do
 mercurialMove :: FilePath -> FilePath -> FilePath -> Author -> Description -> IO ()
 mercurialMove repo oldName newName author logMsg = do
   mercurialLatestRevId repo oldName   -- will throw a NotFound error if oldName doesn't exist
-  (statusAdd, err, _) <- withSanityCheck repo [".hg"] newName $ runMercurialCommand repo "mv" [oldName, newName] 
+  (statusAdd, err, _) <- withSanityCheck repo [".hg"] newName $ runMercurialCommand repo "mv" [oldName, newName]
   if statusAdd == ExitSuccess
      then mercurialCommit repo [oldName, newName] author logMsg
      else throwIO $ UnknownError $ "Could not hg mv " ++ oldName ++ " " ++ newName ++ "\n" ++ err
@@ -272,7 +272,7 @@ mercurialLogEntry = do
             , revDateTime    = fromJust (parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S %z" date :: Maybe UTCTime)
             , revAuthor      = Author { authorName = author, authorEmail = email }
             , revDescription = stripTrailingNewlines subject
-            , revChanges     = file_add ++ file_mod ++ file_del 
+            , revChanges     = file_add ++ file_mod ++ file_del
             }
 
 {-
