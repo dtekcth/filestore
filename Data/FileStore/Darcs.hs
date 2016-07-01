@@ -39,6 +39,7 @@ darcsFileStore :: FilePath -> FileStore
 darcsFileStore repo = FileStore {
     initialize      = darcsInit repo
   , save            = darcsSave repo
+  , saveWithDate    = undefined
   , retrieve        = darcsRetrieve repo
   , delete          = darcsDelete repo
   , rename          = darcsMove repo

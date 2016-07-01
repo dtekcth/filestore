@@ -33,6 +33,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Typeable
 import Data.ByteString.Lazy.UTF8 (toString, fromString)
 import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX ()
 import Control.Exception (Exception)
 
 type RevisionId   = String
@@ -155,6 +156,14 @@ data FileStore = FileStore {
                    -> Author            --  Author of change.
                    -> Description       --  Description of change.
                    -> a                 --  New contents of resource.
+                   -> IO ()
+
+  , saveWithDate   :: forall a . Contents a
+                   => FilePath          -- Resource to save.
+                   -> Author            -- Author of change.
+                   -> UTCTime           -- Date of change.
+                   -> Description       -- Description of change.
+                   -> a                 -- New contents of resource.
                    -> IO ()
 
     -- | Retrieve the contents of the named resource.

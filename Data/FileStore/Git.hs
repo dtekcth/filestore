@@ -22,7 +22,8 @@ import Data.FileStore.Types
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.List.Split (endByOneOf)
 import System.Exit
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Data.FileStore.Utils (withSanityCheck, hashsMatch, runShellCommand, escapeRegexSpecialChars, withVerifyDir, encodeArg)
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -38,7 +39,8 @@ import qualified Control.Exception as E
 gitFileStore :: FilePath -> FileStore
 gitFileStore repo = FileStore {
     initialize        = gitInit repo
-  , save              = gitSave repo 
+  , save              = gitSave repo
+  , saveWithDate      = gitSaveWithDate repo
   , retrieve          = gitRetrieve repo
   , delete            = gitDelete repo
   , rename            = gitMove repo
@@ -88,30 +90,42 @@ gitInit repo = do
        if status' == ExitSuccess
           then return ()
           else throwIO $ UnknownError $ "git config failed:\n" ++ err'
-     else throwIO $ UnknownError $ "git-init failed:\n" ++ err 
+     else throwIO $ UnknownError $ "git-init failed:\n" ++ err
 
 -- | Commit changes to a resource.  Raise 'Unchanged' exception if there were
 -- no changes.
 gitCommit :: FilePath -> [FilePath] -> Author -> String -> IO ()
 gitCommit repo names author logMsg = do
+  now <- getPOSIXTime
+  gitCommitWithDate repo names author now logMsg
+
+gitCommitWithDate :: FilePath -> [FilePath] -> Author -> POSIXTime -> String -> IO ()
+gitCommitWithDate repo names author date logMsg = do
   let env = [("GIT_COMMITTER_NAME", authorName author),
              ("GIT_COMMITTER_EMAIL", authorEmail author)]
   (statusCommit, errCommit, _) <- runGitCommandWithEnv env repo "commit" $ ["--author", authorName author ++ " <" ++
-                                    authorEmail author ++ ">", "-m", logMsg] ++ names
+                                    authorEmail author ++ ">", "-m", logMsg, "--date", (show date)] ++ names
   if statusCommit == ExitSuccess
      then return ()
      else throwIO $ if null errCommit
-                       then Unchanged
-                       else UnknownError $ "Could not git commit " ++ unwords names ++ "\n" ++ errCommit
+                    then Unchanged
+                    else UnknownError $ "Could not git commit " ++ unwords names ++ "\n" ++ errCommit
 
 -- | Save changes (creating file and directory if needed), add, and commit.
 gitSave :: Contents a => FilePath -> FilePath -> Author -> Description -> a -> IO ()
 gitSave repo name author logMsg contents = do
+  now <- getCurrentTime
+  gitSaveWithDate repo name author now logMsg contents
+
+-- | Save changes (creating file and directory if needed), add, and commit.
+gitSaveWithDate :: Contents a => FilePath -> FilePath -> Author -> UTCTime -> Description -> a -> IO ()
+gitSaveWithDate repo name author date logMsg contents = do
   withSanityCheck repo [".git"] name $ B.writeFile (repo </> encodeArg name) $ toByteString contents
   (statusAdd, errAdd, _) <- runGitCommand repo "add" [name]
   if statusAdd == ExitSuccess
-     then gitCommit repo [name] author logMsg
+     then gitCommitWithDate repo [name] author (utcTimeToPOSIXSeconds date) logMsg
      else throwIO $ UnknownError $ "Could not git add '" ++ name ++ "'\n" ++ errAdd
+
 
 isSymlink :: FilePath -> FilePath -> Maybe RevisionId -> IO Bool
 isSymlink repo name revid = do

@@ -31,13 +31,15 @@ import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 import Control.Exception (throwIO)
 import Data.FileStore.Compat.Locale (defaultTimeLocale)
 import Data.Time (parseTime, formatTime)
+import Data.Time.Clock.POSIX (getPOSIXTime, POSIXTime, utcTimeToPOSIXSeconds)
 
 -- | Return a filestore implemented using the mercurial distributed revision control system
 -- (<http://mercurial.selenic.com/>).
 mercurialFileStore :: FilePath -> FileStore
 mercurialFileStore repo = FileStore {
     initialize        = mercurialInit repo
-  , save              = mercurialSave repo 
+  , save              = mercurialSave repo
+  , saveWithDate      = mercurialSaveWithDate repo
   , retrieve          = mercurialRetrieve repo
   , delete            = mercurialDelete repo
   , rename            = mercurialMove repo
@@ -64,21 +66,28 @@ mercurialInit repo = do
        -- http://mercurial.selenic.com/wiki/FAQ#FAQ.2BAC8-CommonProblems.Any_way_to_.27hg_push.27_and_have_an_automatic_.27hg_update.27_on_the_remote_server.3F
        B.writeFile (repo </> ".hg" </> "hgrc") $
          toByteString "[hooks]\nchangegroup = hg update >&2\n"
-     else throwIO $ UnknownError $ "mercurial init failed:\n" ++ err 
+     else throwIO $ UnknownError $ "mercurial init failed:\n" ++ err
 
 -- | Commit changes to a resource.  Raise 'Unchanged' exception if there were
 -- no changes.
 mercurialCommit :: FilePath -> [FilePath] -> Author -> String -> IO ()
 mercurialCommit repo names author logMsg = do
+  now <- getPOSIXTime
+  mercurialCommitWithDate repo names author now logMsg
+
+mercurialCommitWithDate :: FilePath -> [FilePath] -> Author -> POSIXTime -> String -> IO ()
+mercurialCommitWithDate repo names author date logMsg = do
   let email = authorEmail author
       email' = if not (null email)
-                then " <" ++ email ++ ">"
-                else ""
-  (statusCommit, errCommit, _) <- runMercurialCommand repo "commit" $ ["--user", authorName author ++ email', "-m", logMsg] ++ names
-  unless (statusCommit == ExitSuccess) $ do
-     throwIO $ if null errCommit
-                  then Unchanged
-                  else UnknownError $ "Could not hg commit " ++ unwords names ++ "\n" ++ errCommit
+               then " <" ++ email ++ ">"
+               else ""
+      date' = floor date :: Integer
+  (statusCommit, errCommit, _) <- runMercurialCommand repo "commit" $ ["--user", authorName author ++ email', "-m", logMsg, "--date", show date' ++ " 0"] ++ names
+  unless (statusCommit == ExitSuccess) $ throwIO
+    $ if null errCommit
+      then Unchanged
+      else UnknownError $ "Could not hg commit " ++ unwords names ++ "\n" ++ errCommit
+
 
 -- | Save changes (creating file and directory if needed), add, and commit.
 mercurialSave :: Contents a => FilePath -> FilePath -> Author -> Description -> a -> IO ()
@@ -88,6 +97,15 @@ mercurialSave repo name author logMsg contents = do
   if statusAdd == ExitSuccess
      then mercurialCommit repo [name] author logMsg
      else throwIO $ UnknownError $ "Could not hg add '" ++ name ++ "'\n" ++ errAdd
+
+mercurialSaveWithDate :: Contents a => FilePath -> FilePath -> Author -> UTCTime -> Description -> a -> IO ()
+mercurialSaveWithDate repo name author date logMsg contents = do
+  withSanityCheck repo [".hg"] name $ B.writeFile (repo </> encodeArg name) $ toByteString contents
+  (statusAdd, errAdd, _) <- runMercurialCommand repo "add" ["path:" ++ name]
+  if statusAdd == ExitSuccess
+     then mercurialCommitWithDate repo [name] author (utcTimeToPOSIXSeconds date) logMsg
+     else throwIO $ UnknownError $ "Could not hg add '" ++ name ++ "'\n" ++ errAdd
+
 
 -- | Retrieve contents from resource.
 --   Mercurial does not track directories so catting from a directory returns all files
